@@ -226,8 +226,18 @@ class url_finder {
         $uniquedomains = array_unique($domains);
 
         $sslfailures = array();
+        $knownsupported = array(
+            'amazon.com',
+            'www.amazon.com',
+            'dropbox.com',
+            'www.dropbox.com',
+            'cdnapi.kaltura.com'
+        );
 
         foreach ($uniquedomains as $domain) {
+            if (in_array($domain, $knownsupported)) {
+                continue;
+            }
             if (!$this->check_domain_availability("https://$domain/")) {
                 $sslfailures[] = $domain;
             }
