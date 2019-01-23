@@ -31,12 +31,14 @@ list($options, $unrecognized) = cli_get_params(
         'help' => false,
         'list' => false,
         'replace' => false,
+        'verbose' => false,
         'confirm' => false,
     ),
     array(
         'h' => 'help',
         'l' => 'list',
         'r' => 'replace',
+        'v' => 'verbose',
     )
 );
 if ($unrecognized) {
@@ -49,6 +51,7 @@ Options:
 -h, --help            Print out this help
 -l, --list            List of http (not https) urls on a site in the DB that would become broken.
 -r, --replace         List of http (not https) urls on a site in the DB that would become broken.
+-v, --verbose         Show progress messages.
 --confirm             Replaces http urls with https across a site's content.
 Example:
 \$ sudo -u www-data /usr/bin/php admin/tool/httpsreplace/cli/url_replace.php --list \n";
@@ -66,12 +69,20 @@ if (!is_https()) {
     echo "\n";
 }
 
+$printprogress = null;
+if ($options['verbose']) {
+    $printprogress = function($msg) {
+        echo "\r\033[K\033[1A\r\033[K\r";
+        echo $msg . PHP_EOL;
+    };
+}
+
 if ($options['replace']) {
 
     if ($options['confirm']) {
 
         $urlfinder = new \tool_httpsreplace\url_finder();
-        $urlfinder->upgrade_http_links();
+        $urlfinder->upgrade_http_links(null, $printprogress);
     } else {
         echo "Once this is tool run, changes made can't be reverted. \n" .
              "A complete backup should be made before running this script. \n\n" .
@@ -82,7 +93,7 @@ if ($options['replace']) {
 } else {
 
     $urlfinder = new \tool_httpsreplace\url_finder();
-    $results = $urlfinder->http_link_stats();
+    $results = $urlfinder->http_link_stats(null, $printprogress);
     asort($results);
     $fp = fopen('php://stdout', 'w');
     fputcsv($fp, ['clientsite', 'httpdomain', 'urlcount']);
