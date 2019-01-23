@@ -42,20 +42,22 @@ class url_finder {
      * Returns a hash of what hosts are referred to over http and would need to be changed.
      *
      * @param progress_bar $progress Progress bar keeping track of this process.
+     * @param callable $pgcallback If present, this will be called with a progress message.
      * @return array Hash of domains with number of references as the value.
      */
-    public function http_link_stats($progress = null) {
-        return $this->process(false, $progress);
+    public function http_link_stats($progress = null, $pgcallback = null) {
+        return $this->process(false, $progress, $pgcallback);
     }
 
     /**
      * Changes all resources referred to over http to https.
      *
      * @param progress_bar $progress Progress bar keeping track of this process.
+     * @param callable $pgcallback If present, this will be called with a progress message.
      * @return bool True upon success
      */
-    public function upgrade_http_links($progress = null) {
-        return $this->process(true, $progress);
+    public function upgrade_http_links($progress = null, $pgcallback = null) {
+        return $this->process(true, $progress, $pgcallback);
     }
 
     /**
@@ -113,9 +115,10 @@ class url_finder {
      * Originally forked from core function db_search().
      * @param bool $replacing Whether or not to replace the found urls.
      * @param progress_bar $progress Progress bar keeping track of this process.
+     * @param callable $pgcallback If present, this will be called with a progress message.
      * @return bool|array If $replacing, return true on success. If not, return hash of http urls to number of times used.
      */
-    protected function process($replacing = false, $progress = null) {
+    protected function process($replacing = false, $progress = null, $pgcallback = null) {
         global $DB, $CFG;
 
         require_once($CFG->libdir.'/filelib.php');
@@ -189,7 +192,12 @@ class url_finder {
                                 }
                                 if ($replacing) {
                                     // For replace string use: prefix, protocol, host and one extra character.
-                                    $found[$prefix . \core_text::substr($url, 0, \core_text::strlen($host) + 8)] = $host;
+                                    $key = $prefix . \core_text::substr($url, 0, \core_text::strlen($host) + 8);
+                                    $found[$key] = $host;
+
+                                    if (is_callable($pgcallback)) {
+                                        $pgcallback("Found replacement: [$key] $host");
+                                    }
                                 } else {
                                     $entry["table"] = $table;
                                     $entry["columnname"] = $columnname;
@@ -198,14 +206,25 @@ class url_finder {
                                     $entry["raw"] = $record->$columnname;
                                     $entry["ssl"] = '';
                                     $urls[] = $entry;
+
+                                    if (is_callable($pgcallback)) {
+                                        $pgcallback("Reviewing entry: $table, $columnname, $url");
+                                    }
                                 }
                             }
                         }
                         $rs->close();
 
                         if ($replacing) {
+                            $total = count($found);
+                            $count = 0;
                             foreach ($found as $search => $domain) {
                                 $this->domain_swap($table, $column, $domain, $search);
+
+                                $count++;
+                                if (is_callable($pgcallback)) {
+                                    $pgcallback('Performing replacement: ' . ((int)(($count / $total) * 100)) . '%');
+                                }
                             }
                         }
                     }
@@ -239,21 +258,28 @@ class url_finder {
                 continue;
             }
             if (!$this->check_domain_availability("https://$domain/")) {
-                $sslfailures[] = $domain;
+                $sslfailures[$domain] = true;
+            }
+            if (is_callable($pgcallback)) {
+                $pgcallback('Validating domain for HTTPS support: ' . $domain);
             }
         }
 
         $results = array();
+        $total = count($urls);
+        $count = 0;
         foreach ($urls as $url) {
             $host = $url['host'];
-            foreach ($sslfailures as $badhost) {
-                if ($host == $badhost) {
-                    if (!isset($results[$host])) {
-                        $results[$host] = 1;
-                    } else {
-                        $results[$host]++;
-                    }
+            if (!empty($sslfailures[$host])) {
+                if (!isset($results[$host])) {
+                    $results[$host] = 1;
+                } else {
+                    $results[$host]++;
                 }
+            }
+            $count++;
+            if (is_callable($pgcallback)) {
+                $pgcallback('Validating urls: ' . ((int)(($count / $total) * 100)) . '%');
             }
         }
         return $results;
