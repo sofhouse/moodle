@@ -102,6 +102,8 @@ class raw_event_retrieval_strategy implements raw_event_retrieval_strategy_inter
         if (is_numeric($groups)) {
             $groups = array($groups);
         }
+        // Convert $courses to array in case it is a number.
+        // So, from this point forward $courses can be an array or bool.
         if (is_numeric($courses)) {
             $courses = array($courses);
         }
@@ -137,10 +139,13 @@ class raw_event_retrieval_strategy implements raw_event_retrieval_strategy_inter
         // Boolean false (no groups at all): We don't need to do anything.
 
         // Course filter.
+        $subquerycourses = [];
         if (is_array($courses) && !empty($courses)) {
             list($insqlcourses, $inparamscourses) = $DB->get_in_or_equal($courses, SQL_PARAMS_NAMED);
             $filters[] = "(e.groupid = 0 AND e.courseid $insqlcourses)";
             $params = array_merge($params, $inparamscourses);
+
+            $subquerycourses = $courses;
         } else if ($courses === true) {
             // Events from ALL courses.
             $filters[] = "(e.groupid = 0 AND e.courseid != 0)";
@@ -241,33 +246,25 @@ class raw_event_retrieval_strategy implements raw_event_retrieval_strategy_inter
                 // Events from ALL groups.
                 $subqueryconditions[] = "ev.groupid != 0";
             }
-
             if ($courses === true) {
                 // ALL course events. It's not needed to worry about users' access as $users = true.
                 $subqueryconditions[] = "(ev.groupid = 0 AND ev.courseid != 0 AND ev.categoryid = 0)";
             }
         }
 
-        // Get courses to be used for the subquery.
-        $subquerycourses = [];
-        if (is_array($courses)) {
-            $subquerycourses = $courses;
-        }
-        // Merge with user courses, if necessary.
-        if (!empty($allusercourses)) {
-            $subquerycourses = array_merge($subquerycourses, $allusercourses);
-            // Make sure we remove duplicate values.
-            $subquerycourses = array_unique($subquerycourses);
-        }
-
-        // Set subquery filter condition for the courses.
+        // Set sub-query filter condition for the courses.
+        // At this point $subqueryconditions can have all the courses already.
         if (!empty($subquerycourses)) {
             list($incourses, $incoursesparams) = $DB->get_in_or_equal($subquerycourses, SQL_PARAMS_NAMED);
             $subqueryconditions[] = "(ev.groupid = 0 AND ev.courseid $incourses AND ev.categoryid = 0)";
             $subqueryparams = array_merge($subqueryparams, $incoursesparams);
+        } elseif (empty($subquerycourses) && !empty($allusercourses) && ($courses !== true && $users !== true)) {
+            list($incourses, $incoursesparams) = $DB->get_in_or_equal($allusercourses, SQL_PARAMS_NAMED);
+            $subqueryconditions[] = "(ev.groupid = 0 AND ev.courseid $incourses AND ev.categoryid = 0)";
+            $subqueryparams = array_merge($subqueryparams, $incoursesparams);
         }
 
-        // Set subquery filter condition for the categories.
+        // Set sub-query filter condition for the categories.
         if ($categories === true) {
             $subqueryconditions[] = "(ev.categoryid != 0 AND ev.eventtype = 'category')";
         } else if (!empty($categories)) {
