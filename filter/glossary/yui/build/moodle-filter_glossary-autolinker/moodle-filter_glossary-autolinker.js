@@ -25,7 +25,12 @@ Y.extend(AUTOLINKER, Y.Base, {
         require(['core/event'], function(event) {
             Y.delegate('click', function(e) {
                 e.preventDefault();
-
+                var target = Y.one(e.target);
+                if (target.getAttribute('disabled') === 'true') {
+                    return true;
+                }
+                // Prevent multiple calls.
+                target.setAttribute('disabled', true);
                 // display a progress indicator
                 var title = '',
                     content = Y.Node.create('<div id="glossaryfilteroverlayprogress">' +
@@ -53,7 +58,7 @@ Y.extend(AUTOLINKER, Y.Base, {
                     context: self,
                     on: {
                         success: function(id, o) {
-                            this.display_callback(o.responseText, event);
+                            this.display_callback(o.responseText, event, target);
                         },
                         failure: function(id, o) {
                             var debuginfo = o.statusText;
@@ -73,8 +78,9 @@ Y.extend(AUTOLINKER, Y.Base, {
      * @method display_callback
      * @param {String} content - Content to display
      * @param {Object} event The amd event module used to fire events for jquery and yui.
+     * @param {Object} html node that triggers the event.
      */
-    display_callback: function(content, event) {
+    display_callback: function(content, event, target) {
         var data,
             key,
             alertpanel,
@@ -93,7 +99,7 @@ Y.extend(AUTOLINKER, Y.Base, {
                     // Notify the filters about the modified nodes.
                     event.notifyFilterContentUpdated(alertpanel.get('boundingBox').getDOMNode());
                     Y.Node.one('#id_yuialertconfirm-' + alertpanel.get('COUNT')).focus();
-
+                    alertpanel.on('complete', function() {target.setAttribute('disabled', false);});
                     // Register alertpanel for stacking.
                     alertpanelid = '#moodle-dialogue-' + alertpanel.get('COUNT');
                     alertpanel.on('complete', this._deletealertpanel, this, alertpanelid);
