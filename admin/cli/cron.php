@@ -39,10 +39,12 @@ list($options, $unrecognized) = cli_get_params(
     array(
         'help' => false,
         'stop' => false,
+        'type' => false,
     ),
     array(
         'h' => 'help',
         's' => 'stop',
+        't' => 'type',
     )
 );
 
@@ -58,6 +60,7 @@ if ($options['help']) {
 Options:
 -h, --help            Print out this help
 -s, --stop            Notify all other running cron processes to stop after the current task
+-t, --type            Specify a type of task to run, 'scheduled' or 'adhoc'
 
 Example:
 \$sudo -u www-data /usr/bin/php admin/cli/cron.php
@@ -76,4 +79,15 @@ if ($options['stop']) {
 
 \core\local\cli\shutdown::script_supports_graceful_exit();
 
-cron_run();
+if ($options['type']) {
+    $types = [
+        'scheduled' => true,
+        'adhoc'     => true,
+    ];
+    if (!isset($types[$options['type']])) {
+        $unrecognized = '--type=' . $options['type'];
+        cli_error(get_string('cliunknowoption', 'admin', $unrecognized));
+    }
+}
+
+cron_run($options['type']);
