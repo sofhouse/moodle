@@ -25,8 +25,9 @@
 
 /**
  * Execute cron tasks
+ * @param boolean|string $type
  */
-function cron_run() {
+function cron_run($type = false) {
     global $DB, $CFG, $OUTPUT;
 
     if (CLI_MAINTENANCE) {
@@ -69,11 +70,24 @@ function cron_run() {
         set_config('lastcroninterval', max(1, $timenow - $laststart), 'tool_task');
     }
 
-    // Run all scheduled tasks.
-    cron_run_scheduled_tasks($timenow);
+    if ($type === false) {
+        // Run all scheduled tasks.
+        cron_run_scheduled_tasks($timenow);
 
-    // Run adhoc tasks.
-    cron_run_adhoc_tasks($timenow);
+        // Run adhoc tasks.
+        cron_run_adhoc_tasks($timenow);
+    } else {
+        switch ($type) {
+            case 'scheduled':
+                // Run all scheduled tasks.
+                cron_run_scheduled_tasks($timenow);
+                break;
+            case 'adhoc':
+                // Run adhoc tasks.
+                cron_run_adhoc_tasks($timenow);
+                break;
+        }
+    }
 
     mtrace("Cron script completed correctly");
 
