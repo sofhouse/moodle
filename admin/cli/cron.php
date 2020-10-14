@@ -44,6 +44,7 @@ list($options, $unrecognized) = cli_get_params(
         'enable' => false,
         'disable' => false,
         'disable-wait' => false,
+        'type' => false,
     ], [
         'h' => 'help',
         's' => 'stop',
@@ -52,6 +53,7 @@ list($options, $unrecognized) = cli_get_params(
         'e' => 'enable',
         'd' => 'disable',
         'w' => 'disable-wait',
+        't' => 'type',
     ]
 );
 
@@ -72,6 +74,7 @@ Options:
 -e, --enable             Enable cron
 -d, --disable            Disable cron
 -w, --disable-wait=600   Disable cron and wait until all tasks finished or fail after N seconds (optional param)
+-t, --type            Specify a type of task to run, 'scheduled' or 'adhoc'
 
 Example:
 \$sudo -u www-data /usr/bin/php admin/cli/cron.php
@@ -175,4 +178,15 @@ if (!get_config('core', 'cron_enabled') && !$options['force']) {
 
 \core\local\cli\shutdown::script_supports_graceful_exit();
 
-cron_run();
+if ($options['type']) {
+    $types = [
+        'scheduled' => true,
+        'adhoc'     => true,
+    ];
+    if (!isset($types[$options['type']])) {
+        $unrecognized = '--type=' . $options['type'];
+        cli_error(get_string('cliunknowoption', 'admin', $unrecognized));
+    }
+}
+
+cron_run($options['type']);
